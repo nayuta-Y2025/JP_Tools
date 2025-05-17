@@ -1,0 +1,104 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <title>パス変換ツール</title>
+</head>
+<body>
+  <h2>Windows ⇄ Mac パス変換 (ファイルサーバー向け)</h2>
+  <textarea id="input" rows="4" cols="60" placeholder="ここにパスを入力してください（Win: \\server\share\... または Mac: /Volumes/share\...）"></textarea><br><br>
+  <button onclick="convertToMac()">→ Mac形式に変換</button>
+  <button onclick="convertToWindows()">→ Windows形式に変換</button><br><br>
+  <textarea id="output" rows="4" cols="60" readonly></textarea>
+
+  <script>
+    function convertToMac() {
+      const input = document.getElementById("input").value.trim(); // 前後の空白を除去
+      if (!input) { // 入力がない場合は何もしない
+          document.getElementById("output").value = "";
+          return;
+      }
+
+      let macPath = input;
+
+      // 入力が既にMac形式 (/Volumes/...) から始まっている場合はそのまま返す
+      if (macPath.startsWith('/Volumes/')) {
+          document.getElementById("output").value = macPath;
+          return;
+      }
+      // Windowsの \\ または \ を / に置換
+      macPath = macPath.replace(/\\/g, '/'); // まず全ての\を/に
+      // ドライブレター (例: C:) を削除（ファイルサーバーパスでは通常不要だが、念のため残す）
+      macPath = macPath.replace(/^[A-Z]:/, '');
+
+      // WindowsのUNCパス (例: //server/share/path または //IPAddress/share/path)
+      // を Macの /Volumes/share/path に変換
+      // サーバ名またはIPアドレス部分 ([^\/]+) を捨てて、共有名以下のパス部分 (.+) を Volumes に繋げる
+      // 正規表現のグループ化 () を使用
+      // \\server\share\folder -> //server/share/folder に変換されているはずなので、// から始まるものを処理
+      const uncMatch = macPath.match(/^\/\/[^\/]+\/(.+)/);
+      if (uncMatch && uncMatch[1]) {
+          macPath = '/Volumes/' + uncMatch[1];
+      } else {
+          // UNCパス形式でなかった場合（例: C:/Users/... -> /Users/...）、
+          // ファイルサーバー用途では想定外かもしれないが、'/Volumes' プレフィックスは付けないでおく
+          // 必要であれば、ここで他の変換ルールを追加
+      }
+
+      // 念のためスラッシュが連続している場合は一つにまとめる
+      macPath = macPath.replace(/\/\//g, '/');
+
+       // Macへの変換ではNFDが使われることが多いが、ここでは特に正規化は行わない（OS側での解釈に任せる）
+       // 必要であれば macPath = macPath.normalize('NFD'); を追加する可能性もあるが、通常は不要
+
+      document.getElementById("output").value = macPath;
+    }
+
+    function convertToWindows() {
+      const input = document.getElementById("input").value.trim(); // 前後の空白を除去
+      if (!input) { // 入力がない場合は何もしない
+           document.getElementById("output").value = "";
+           return;
+           }
+
+      let winPath = input;
+
+      // **【日本語（合成文字）対応】** MacからWindowsへの変換前にNFCに正規化
+      // これにより、MacでNFDとして扱われている可能性のある文字をWindowsが期待するNFC形式に変換
+      winPath = winPath.normalize('NFC');
+
+
+      // 入力が既にWindows形式 (\\...) から始まっている場合はそのまま返す（\\WHITE02 や \\172.21.50.2 想定）
+      // もし \\WHITE02 が入力された場合に、強制的に \\172.21.50.2 に置換したいなら以下の行を有効にする
+       if (winPath.startsWith('\\\\')) {
+            // winPath = winPath.replace(/^\\\\WHITE02\\/, '\\\\172.21.50.2\\');
+           document.getElementById("output").value = winPath;
+           return;
+       }
+
+
+      // Macの /Volumes/share/path を Windowsの \\172.21.50.2\share\path に変換
+      // /Volumes/ の後に続く共有名とパス部分 (.+) をキャプチャし、\\172.21.50.2\ の後ろに付加
+      // 正規表現のグループ化 () を使用
+      const volumesMatch = winPath.match(/^\/Volumes\/(.+)/);
+      if (volumesMatch && volumesMatch[1]) {
+          // 【Windows形式変換】先頭を \\172.21.50.2\ にする
+          winPath = '\\\\172.21.50.2\\' + volumesMatch[1];
+      } else {
+          // /Volumes/ 形式でなかったMacパスの場合（例: /Users/...）
+          // ファイルサーバー用途では想定外かもしれないが、一般的なWindowsパス形式に変換する
+          // / を \ に置換
+          winPath = winPath.replace(/\//g, '\\');
+           // 先頭の \ に C: をつける（例: /Users/username -> \Users\username -> C:\Users\username）
+           // \\ で始まらない、かつドライブレターがないパスに C: を付与
+           if (winPath.startsWith('\\') && !winPath.includes(':')) {
+              winPath = "C:" + winPath;
+           }
+           // その他、変換ルールが必要な場合はここを調整
+      }
+
+      document.getElementById("output").value = winPath;
+    }
+  </script>
+</body>
+</html>
