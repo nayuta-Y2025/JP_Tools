@@ -6,7 +6,7 @@
 </head>
 <body>
   <h2>Windows ⇄ Mac パス変換 (ファイルサーバー向け)</h2>
-  <textarea id="input" rows="4" cols="60" placeholder="ここにパスを入力してください（Win: \\server\share\... または Mac: /Volumes/share\...）"></textarea><br><br>
+  <textarea id="input" rows="4" cols="60" placeholder="ここにパスを入力してください（Win: \\server\share\... または \\IP\share\... または Mac: /Volumes/share\...）"></textarea><br><br>
   <button onclick="convertToMac()">→ Mac形式に変換</button>
   <button onclick="convertToWindows()">→ Windows形式に変換</button><br><br>
   <textarea id="output" rows="4" cols="60" readonly></textarea>
@@ -56,14 +56,14 @@
 
     function convertToWindows() {
       const input = document.getElementById("input").value.trim(); // 前後の空白を除去
-      if (!input) { // 入力がない場合は何もしない
+       if (!input) { // 入力がない場合は何もしない
            document.getElementById("output").value = "";
            return;
            }
 
       let winPath = input;
 
-      // **【日本語（合成文字）対応】** MacからWindowsへの変換前にNFCに正規化
+      // 【日本語（合成文字）対応】 MacからWindowsへの変換前にNFCに正規化
       // これにより、MacでNFDとして扱われている可能性のある文字をWindowsが期待するNFC形式に変換
       winPath = winPath.normalize('NFC');
 
@@ -71,7 +71,7 @@
       // 入力が既にWindows形式 (\\...) から始まっている場合はそのまま返す（\\WHITE02 や \\172.21.50.2 想定）
       // もし \\WHITE02 が入力された場合に、強制的に \\172.21.50.2 に置換したいなら以下の行を有効にする
        if (winPath.startsWith('\\\\')) {
-            // winPath = winPath.replace(/^\\\\WHITE02\\/, '\\\\172.21.50.2\\');
+            // winPath = winPath.replace(/^\\\\WHITE02\\/, '\\\\172.21.50.2\\'); // WHITE02をIPに置換する場合
            document.getElementById("output").value = winPath;
            return;
        }
@@ -96,6 +96,15 @@
            }
            // その他、変換ルールが必要な場合はここを調整
       }
+
+      // 【重要】ここで Mac の / を Windows の \ に置換しています
+      // /Volumes/ から変換されたパス(\\172.21.50.2\share/folder/...)にも適用されます
+      winPath = winPath.replace(/\//g, '\\');
+
+
+      // 【削除】ここで連続するバックスラッシュをまとめる処理は行わない（UNCパスの \\ が \ になってしまうため）
+      // winPath = winPath.replace(/\\\\/g, '\\');
+
 
       document.getElementById("output").value = winPath;
     }
