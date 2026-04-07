@@ -3,110 +3,168 @@
 <head>
   <meta charset="UTF-8">
   <title>パス変換ツール</title>
+  <style>
+    body {
+      font-family: 'Helvetica Neue', Arial, sans-serif;
+      background-color: #f4f7f9;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      height: 100vh;
+      margin: 0;
+    }
+    .container {
+      background: #fff;
+      padding: 30px;
+      border-radius: 12px;
+      box-shadow: 0 10px 25px rgba(0,0,0,0.1);
+      width: 100%;
+      max-width: 600px;
+    }
+    h2 {
+      margin-top: 0;
+      color: #333;
+      font-size: 1.5rem;
+      text-align: center;
+    }
+    .status-badge {
+      display: inline-block;
+      padding: 4px 12px;
+      border-radius: 20px;
+      font-size: 0.8rem;
+      font-weight: bold;
+      margin-bottom: 10px;
+      background: #e0e0e0;
+      color: #666;
+    }
+    .status-mac { background: #000; color: #fff; }
+    .status-win { background: #0078d4; color: #fff; }
+
+    textarea {
+      width: 100%;
+      padding: 15px;
+      border: 2px solid #ddd;
+      border-radius: 8px;
+      font-family: monospace;
+      font-size: 14px;
+      resize: vertical;
+      box-sizing: border-box;
+      transition: border-color 0.3s;
+    }
+    textarea:focus {
+      outline: none;
+      border-color: #007aff;
+    }
+    .button-group {
+      display: flex;
+      gap: 10px;
+      margin-top: 15px;
+    }
+    button {
+      flex: 1;
+      padding: 12px;
+      border: none;
+      border-radius: 6px;
+      cursor: pointer;
+      font-weight: bold;
+      transition: opacity 0.2s;
+    }
+    .btn-convert {
+      background-color: #007aff;
+      color: white;
+    }
+    .btn-clear {
+      background-color: #eee;
+      color: #333;
+    }
+    button:hover {
+      opacity: 0.8;
+    }
+  </style>
 </head>
 <body>
-  <h2>Windows ⇄ Mac パス変換 (ファイルサーバー向け)</h2>
-  <textarea id="input" rows="4" cols="60" placeholder="ここにパスを入力してください（Win: \\server\share\... または \\IP\share\... または Mac: /Volumes/share\...）"></textarea><br><br>
-  <button onclick="convertToMac()">→ Mac形式に変換</button>
-  <button onclick="convertToWindows()">→ Windows形式に変換</button><br><br>
-  <textarea id="output" rows="4" cols="60" readonly></textarea>
+  <div class="container">
+    <h2>Path Converter</h2>
+    <div id="status" class="status-badge">形式を判別中...</div>
+    <textarea id="pathBox" rows="5" placeholder="パスを貼り付けてください..." oninput="updateStatus()"></textarea>
+    
+    <div class="button-group">
+      <button class="btn-convert" onclick="toggleConvert()">変換する</button>
+      <button class="btn-clear" onclick="clearAll()">クリア</button>
+    </div>
+  </div>
 
   <script>
-    function convertToMac() {
-      const input = document.getElementById("input").value.trim(); // 前後の空白を除去
-      if (!input) { // 入力がない場合は何もしない
-          document.getElementById("output").value = "";
-          return;
-      }
+    const pathBox = document.getElementById("pathBox");
+    const statusEl = document.getElementById("status");
 
+    function updateStatus() {
+      const path = pathBox.value.trim();
+      if (!path) {
+        statusEl.innerText = "待機中";
+        statusEl.className = "status-badge";
+        return;
+      }
+      if (path.startsWith('\\\\') || path.includes('\\')) {
+        statusEl.innerText = "Windows形式";
+        statusEl.className = "status-badge status-win";
+      } else if (path.startsWith('/Volumes/') || path.includes('/')) {
+        statusEl.innerText = "Mac形式";
+        statusEl.className = "status-badge status-mac";
+      }
+    }
+
+    function toggleConvert() {
+      const input = pathBox.value.trim();
+      if (!input) return;
+
+      // Windows形式かMac形式かを判定して逆の方へ変換
+      if (input.startsWith('\\\\') || input.includes('\\')) {
+        convertToMac(input);
+      } else {
+        convertToWindows(input);
+      }
+      updateStatus();
+    }
+
+    function convertToMac(input) {
       let macPath = input;
-
-      // 入力が既にMac形式 (/Volumes/...) から始まっている場合はそのまま返す
       if (macPath.startsWith('/Volumes/')) {
-          document.getElementById("output").value = macPath;
+          pathBox.value = macPath;
           return;
       }
-      // Windowsの \\ または \ を / に置換
-      macPath = macPath.replace(/\\/g, '/'); // まず全ての\を/に
-      // ドライブレター (例: C:) を削除（ファイルサーバーパスでは通常不要だが、念のため残す）
+      macPath = macPath.replace(/\\/g, '/');
       macPath = macPath.replace(/^[A-Z]:/, '');
-
-      // WindowsのUNCパス (例: //server/share/path または //IPAddress/share/path)
-      // を Macの /Volumes/share/path に変換
-      // サーバ名またはIPアドレス部分 ([^\/]+) を捨てて、共有名以下のパス部分 (.+) を Volumes に繋げる
-      // 正規表現のグループ化 () を使用
-      // \\server\share\folder -> //server/share/folder に変換されているはずなので、// から始まるものを処理
       const uncMatch = macPath.match(/^\/\/[^\/]+\/(.+)/);
       if (uncMatch && uncMatch[1]) {
           macPath = '/Volumes/' + uncMatch[1];
-      } else {
-          // UNCパス形式でなかった場合（例: C:/Users/... -> /Users/...）、
-          // ファイルサーバー用途では想定外かもしれないが、'/Volumes' プレフィックスは付けないでおく
-          // 必要であれば、ここで他の変換ルールを追加
       }
-
-      // 念のためスラッシュが連続している場合は一つにまとめる
       macPath = macPath.replace(/\/\//g, '/');
-
-       // Macへの変換ではNFDが使われることが多いが、ここでは特に正規化は行わない（OS側での解釈に任せる）
-       // 必要であれば macPath = macPath.normalize('NFD'); を追加する可能性もあるが、通常は不要
-
-      document.getElementById("output").value = macPath;
+      pathBox.value = macPath;
     }
 
-    function convertToWindows() {
-      const input = document.getElementById("input").value.trim(); // 前後の空白を除去
-       if (!input) { // 入力がない場合は何もしない
-           document.getElementById("output").value = "";
-           return;
-           }
-
-      let winPath = input;
-
-      // 【日本語（合成文字）対応】 MacからWindowsへの変換前にNFCに正規化
-      // これにより、MacでNFDとして扱われている可能性のある文字をWindowsが期待するNFC形式に変換
-      winPath = winPath.normalize('NFC');
-
-
-      // 入力が既にWindows形式 (\\...) から始まっている場合はそのまま返す（\\WHITE02 や \\172.21.50.2 想定）
-      // もし \\WHITE02 が入力された場合に、強制的に \\172.21.50.2 に置換したいなら以下の行を有効にする
-       if (winPath.startsWith('\\\\')) {
-            // winPath = winPath.replace(/^\\\\WHITE02\\/, '\\\\172.21.50.2\\'); // WHITE02をIPに置換する場合
-           document.getElementById("output").value = winPath;
-           return;
-       }
-
-
-      // Macの /Volumes/share/path を Windowsの \\172.21.50.2\share\path に変換
-      // /Volumes/ の後に続く共有名とパス部分 (.+) をキャプチャし、\\172.21.50.2\ の後ろに付加
-      // 正規表現のグループ化 () を使用
+    function convertToWindows(input) {
+      let winPath = input.normalize('NFC');
+      if (winPath.startsWith('\\\\')) {
+          pathBox.value = winPath;
+          return;
+      }
       const volumesMatch = winPath.match(/^\/Volumes\/(.+)/);
       if (volumesMatch && volumesMatch[1]) {
-          // 【Windows形式変換】先頭を \\172.21.50.2\ にする
           winPath = '\\\\172.21.50.2\\' + volumesMatch[1];
       } else {
-          // /Volumes/ 形式でなかったMacパスの場合（例: /Users/...）
-          // ファイルサーバー用途では想定外かもしれないが、一般的なWindowsパス形式に変換する
-          // / を \ に置換
           winPath = winPath.replace(/\//g, '\\');
-           // 先頭の \ に C: をつける（例: /Users/username -> \Users\username -> C:\Users\username）
-           // \\ で始まらない、かつドライブレターがないパスに C: を付与
            if (winPath.startsWith('\\') && !winPath.includes(':')) {
               winPath = "C:" + winPath;
            }
-           // その他、変換ルールが必要な場合はここを調整
       }
-
-      // 【重要】ここで Mac の / を Windows の \ に置換しています
-      // /Volumes/ から変換されたパス(\\172.21.50.2\share/folder/...)にも適用されます
       winPath = winPath.replace(/\//g, '\\');
+      pathBox.value = winPath;
+    }
 
-
-      // 【削除】ここで連続するバックスラッシュをまとめる処理は行わない（UNCパスの \\ が \ になってしまうため）
-      // winPath = winPath.replace(/\\\\/g, '\\');
-
-
-      document.getElementById("output").value = winPath;
+    function clearAll() {
+      pathBox.value = "";
+      updateStatus();
     }
   </script>
 </body>
