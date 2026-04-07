@@ -72,8 +72,14 @@
     .btn-convert {
       background-color: #007aff;
       color: white;
+      font-size: 1.1rem; /* ボタンを大きめに */
+      padding: 16px;
     }
-    .btn-clear {
+    .btn-copy {
+      background-color: #34c759;
+      color: white;
+    }
+    .btn-clear, .btn-copy {
       background-color: #eee;
       color: #333;
     }
@@ -90,6 +96,7 @@
     
     <div class="button-group">
       <button class="btn-convert" onclick="toggleConvert()">変換する</button>
+      <button class="btn-copy" onclick="copyToClipboard()">コピー</button>
       <button class="btn-clear" onclick="clearAll()">クリア</button>
     </div>
   </div>
@@ -99,7 +106,8 @@
     const statusEl = document.getElementById("status");
 
     function updateStatus() {
-      const path = pathBox.value.trim();
+      // 表示用に不要なクォートを除去した状態で判定
+      const path = pathBox.value.trim().replace(/^["']|["']$/g, '');
       if (!path) {
         statusEl.innerText = "待機中";
         statusEl.className = "status-badge";
@@ -115,8 +123,11 @@
     }
 
     function toggleConvert() {
-      const input = pathBox.value.trim();
+      // 前後の空白とクォートを除去
+      let input = pathBox.value.trim().replace(/^["']|["']$/g, '');
       if (!input) return;
+
+      pathBox.value = input; // クリーンアップした値を反映
 
       // Windows形式かMac形式かを判定して逆の方へ変換
       if (input.startsWith('\\\\') || input.includes('\\')) {
@@ -134,10 +145,10 @@
           return;
       }
       macPath = macPath.replace(/\\/g, '/');
-      macPath = macPath.replace(/^[A-Z]:/, '');
-      const uncMatch = macPath.match(/^\/\/[^\/]+\/(.+)/);
-      if (uncMatch && uncMatch[1]) {
-          macPath = '/Volumes/' + uncMatch[1];
+      // 先頭のサーバー名部分 (\\172.21.50.2\ や \\SERVER\) を /Volumes/ に置換
+      const serverMatch = macPath.match(/^\/\/([^\/]+)\/(.+)/);
+      if (serverMatch && serverMatch[2]) {
+          macPath = '/Volumes/' + serverMatch[2];
       }
       macPath = macPath.replace(/\/\//g, '/');
       pathBox.value = macPath;
@@ -145,21 +156,26 @@
 
     function convertToWindows(input) {
       let winPath = input.normalize('NFC');
-      if (winPath.startsWith('\\\\')) {
-          pathBox.value = winPath;
-          return;
-      }
+      
       const volumesMatch = winPath.match(/^\/Volumes\/(.+)/);
       if (volumesMatch && volumesMatch[1]) {
           winPath = '\\\\172.21.50.2\\' + volumesMatch[1];
       } else {
           winPath = winPath.replace(/\//g, '\\');
-           if (winPath.startsWith('\\') && !winPath.includes(':')) {
-              winPath = "C:" + winPath;
-           }
       }
-      winPath = winPath.replace(/\//g, '\\');
-      pathBox.value = winPath;
+      // スラッシュをバックスラッシュに統一
+      pathBox.value = winPath.replace(/\//g, '\\');
+    }
+
+    function copyToClipboard() {
+      if (!pathBox.value) return;
+      navigator.clipboard.writeText(pathBox.value).then(() => {
+        const originalText = statusEl.innerText;
+        statusEl.innerText = "コピーしました！";
+        setTimeout(() => {
+          updateStatus();
+        }, 2000);
+      });
     }
 
     function clearAll() {
