@@ -29,11 +29,11 @@
     }
     .status-badge {
       display: inline-block;
-      padding: 4px 12px;
+      padding: 8px 20px;
       border-radius: 20px;
-      font-size: 0.8rem;
+      font-size: 1.2rem; /* サイズを大きく */
       font-weight: bold;
-      margin-bottom: 10px;
+      margin-bottom: 15px;
       background: #e0e0e0;
       color: #666;
     }
@@ -72,8 +72,8 @@
     .btn-convert {
       background-color: #007aff;
       color: white;
-      font-size: 1.1rem; /* ボタンを大きめに */
-      padding: 16px;
+      font-size: 1.2rem; /* さらに大きめに */
+      padding: 18px;
     }
     .btn-copy {
       background-color: #34c759;
@@ -106,13 +106,16 @@
     const statusEl = document.getElementById("status");
 
     function updateStatus() {
-      // 表示用に不要なクォートを除去した状態で判定
-      const path = pathBox.value.trim().replace(/^["']|["']$/g, '');
-      if (!path) {
+      // 最初の一行を取り出して判定
+      const lines = pathBox.value.split('\n').map(l => l.trim().replace(/^["']|["']$/g, '')).filter(l => l);
+      
+      if (lines.length === 0) {
         statusEl.innerText = "待機中";
         statusEl.className = "status-badge";
         return;
       }
+
+      const path = lines[0];
       if (path.startsWith('\\\\') || path.includes('\\')) {
         statusEl.innerText = "Windows形式";
         statusEl.className = "status-badge status-win";
@@ -123,48 +126,46 @@
     }
 
     function toggleConvert() {
-      // 前後の空白とクォートを除去
-      let input = pathBox.value.trim().replace(/^["']|["']$/g, '');
-      if (!input) return;
+      const rawInput = pathBox.value.trim();
+      if (!rawInput) return;
 
-      pathBox.value = input; // クリーンアップした値を反映
+      const lines = rawInput.split('\n').map(l => l.trim().replace(/^["']|["']$/g, ''));
+      
+      // 最初の一行で変換方向を決定
+      const isWindows = lines[0].startsWith('\\\\') || lines[0].includes('\\');
+      
+      const convertedLines = lines.map(line => {
+        if (!line) return "";
+        return isWindows ? getMacPath(line) : getWinPath(line);
+      });
 
-      // Windows形式かMac形式かを判定して逆の方へ変換
-      if (input.startsWith('\\\\') || input.includes('\\')) {
-        convertToMac(input);
-      } else {
-        convertToWindows(input);
-      }
+      pathBox.value = convertedLines.join('\n');
       updateStatus();
     }
 
-    function convertToMac(input) {
+    // 変換ロジックの核となる関数 (Macへ)
+    function getMacPath(input) {
       let macPath = input;
-      if (macPath.startsWith('/Volumes/')) {
-          pathBox.value = macPath;
-          return;
-      }
+      if (macPath.startsWith('/Volumes/')) return macPath;
+      
       macPath = macPath.replace(/\\/g, '/');
-      // 先頭のサーバー名部分 (\\172.21.50.2\ や \\SERVER\) を /Volumes/ に置換
       const serverMatch = macPath.match(/^\/\/([^\/]+)\/(.+)/);
       if (serverMatch && serverMatch[2]) {
           macPath = '/Volumes/' + serverMatch[2];
       }
-      macPath = macPath.replace(/\/\//g, '/');
-      pathBox.value = macPath;
+      return macPath.replace(/\/\//g, '/');
     }
 
-    function convertToWindows(input) {
+    // 変換ロジックの核となる関数 (Winへ)
+    function getWinPath(input) {
       let winPath = input.normalize('NFC');
-      
       const volumesMatch = winPath.match(/^\/Volumes\/(.+)/);
       if (volumesMatch && volumesMatch[1]) {
           winPath = '\\\\172.21.50.2\\' + volumesMatch[1];
       } else {
           winPath = winPath.replace(/\//g, '\\');
       }
-      // スラッシュをバックスラッシュに統一
-      pathBox.value = winPath.replace(/\//g, '\\');
+      return winPath.replace(/\//g, '\\');
     }
 
     function copyToClipboard() {
