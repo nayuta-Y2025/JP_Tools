@@ -83,6 +83,12 @@
       background-color: #eee;
       color: #333;
     }
+    .btn-all {
+      background-color: #ff9500;
+      color: white;
+      font-size: 1.2rem;
+      padding: 18px;
+    }
     button:hover {
       opacity: 0.8;
     }
@@ -98,6 +104,9 @@
       <button class="btn-convert" onclick="toggleConvert()">変換する</button>
       <button class="btn-copy" onclick="copyToClipboard()">コピー</button>
       <button class="btn-clear" onclick="clearAll()">クリア</button>
+    </div>
+    <div class="button-group">
+      <button class="btn-all" onclick="convertCopyClear()">変換 → コピー → クリア（一括）</button>
     </div>
   </div>
 
@@ -182,6 +191,19 @@
     function clearAll() {
       pathBox.value = "";
       updateStatus();
+    }
+
+    function convertCopyClear() {
+      if (!pathBox.value.trim()) return;
+      toggleConvert();
+      navigator.clipboard.writeText(pathBox.value).then(() => {
+        pathBox.value = "";
+        statusEl.innerText = "コピーしてクリアしました！";
+        statusEl.className = "status-badge";
+        setTimeout(() => {
+          updateStatus();
+        }, 2000);
+      });
     }
   </script>
 </body>
