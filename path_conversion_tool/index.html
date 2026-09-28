@@ -170,7 +170,7 @@
       let winPath = input.normalize('NFC');
       const volumesMatch = winPath.match(/^\/Volumes\/(.+)/);
       if (volumesMatch && volumesMatch[1]) {
-          winPath = '\\\\172.21.50.2\\' + volumesMatch[1];
+          winPath = '\\\\172.21.50.4\\' + volumesMatch[1];
       } else {
           winPath = winPath.replace(/\//g, '\\');
       }
